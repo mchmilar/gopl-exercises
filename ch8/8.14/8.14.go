@@ -68,13 +68,15 @@ func handleConn(conn net.Conn) {
 	go clientWriter(conn, ch)
 
 	who := conn.RemoteAddr().String()
-	ch <- "You are " + who
+
+	input := bufio.NewScanner(conn)
+	ch <- "Enter your username: "
+	input.Scan()
+	who = input.Text()
 	messages <- who + " has arrived"
 	cli := client{ch, who, new(bool)}
 	entering <- cli
 	go timeClient(conn, cli.timedOut)
-
-	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		messages <- who + ": " + input.Text()
 		*cli.timedOut = false
