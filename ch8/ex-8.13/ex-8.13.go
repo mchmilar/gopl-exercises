@@ -12,12 +12,14 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 //!+broadcaster
 type client struct {
-	Chan chan<- string // an outgoing message channel
-	Name string
+	MsgChan  chan<- string // an outgoing message channel
+	Name     string
+	timedOut *bool
 }
 
 var (
@@ -25,6 +27,14 @@ var (
 	leaving  = make(chan client)
 	messages = make(chan string) // all incoming client messages
 )
+
+func timeClient(conn net.Conn, timedOut *bool) {
+	for !*timedOut {
+		*timedOut = true
+		time.Sleep(30 * time.Second)
+	}
+	conn.Close()
+}
 
 func broadcaster() {
 	clients := make(map[client]bool) // all connected clients
@@ -34,19 +44,19 @@ func broadcaster() {
 			// Broadcast incoming message to all
 			// clients' outgoing message channels.
 			for cli := range clients {
-				cli.Chan <- msg
+				cli.MsgChan <- msg
 			}
 
 		case cli := <-entering:
-			cli.Chan <- "Current users connected: "
+			cli.MsgChan <- "Current users connected: "
 			for client := range clients {
-				cli.Chan <- client.Name
+				cli.MsgChan <- client.Name
 			}
 			clients[cli] = true
 
 		case cli := <-leaving:
 			delete(clients, cli)
-			close(cli.Chan)
+			close(cli.MsgChan)
 		}
 	}
 }
@@ -61,15 +71,18 @@ func handleConn(conn net.Conn) {
 	who := conn.RemoteAddr().String()
 	ch <- "You are " + who
 	messages <- who + " has arrived"
-	entering <- client{ch, who}
+	cli := client{ch, who, new(bool)}
+	entering <- cli
+	go timeClient(conn, cli.timedOut)
 
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		messages <- who + ": " + input.Text()
+		*cli.timedOut = false
 	}
 	// NOTE: ignoring potential errors from input.Err()
 
-	leaving <- client{ch, who}
+	leaving <- cli
 	messages <- who + " has left"
 	conn.Close()
 }
