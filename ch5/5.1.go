@@ -29,7 +29,11 @@ func main() {
 //!-main
 
 //!+visit
-// visit appends to links each link found in n and returns the result.
+
+/*
+Change the findlinks program to traversethe n.FirstChild
+linked list using recursive calls to visit instead of a loop
+*/
 func visit(links []string, n *html.Node) []string {
 	if n.Type == html.ElementNode && n.Data == "a" {
 		for _, a := range n.Attr {
